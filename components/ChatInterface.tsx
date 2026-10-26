@@ -1,4 +1,3 @@
-
 "use client";
 
 import { FormEvent, useState } from "react";
@@ -15,34 +14,76 @@ export default function ChatInterface() {
       id: 1,
       role: "assistant",
       content:
-        "أهلًا بك في مسعد AI! اكتب سؤالك أو فكرتك، وسنبدأ رحلتك نحو الإنجاز.",
+        "أهلًا بك في مسعد AI! أنا مساعدك الذكي. كيف يمكنني مساعدتك اليوم؟",
     },
   ]);
 
   const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const text = input.trim();
-    if (!text) return;
+    if (!text || loading) return;
 
-    setMessages((previous) => [
-      ...previous,
-      {
-        id: Date.now(),
-        role: "user",
-        content: text,
-      },
-      {
-        id: Date.now() + 1,
-        role: "assistant",
-        content:
-          "وصلت رسالتك بنجاح! هذه نسخة تجريبية من المحادثة. سنربط مسعد AI بنموذج ذكاء اصطناعي حقيقي في الخطوة التالية.",
-      },
-    ]);
+    const userMessage: Message = {
+      id: Date.now(),
+      role: "user",
+      content: text,
+    };
 
+    const updatedMessages = [...messages, userMessage];
+
+    setMessages(updatedMessages);
     setInput("");
+    setLoading(true);
+
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messages: updatedMessages.map(({ role, content }) => ({
+            role,
+            content,
+          })),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error || "تعذر الحصول على رد. حاول مرة أخرى."
+        );
+      }
+
+      setMessages((previous) => [
+        ...previous,
+        {
+          id: Date.now() + 1,
+          role: "assistant",
+          content: data.reply,
+        },
+      ]);
+    } catch (error) {
+      setMessages((previous) => [
+        ...previous,
+        {
+          id: Date.now() + 1,
+          role: "assistant",
+          content:
+            error instanceof Error
+              ? error.message
+              : "حدث خطأ في الاتصال. حاول مرة أخرى.",
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -82,6 +123,7 @@ export default function ChatInterface() {
                   : "var(--surface-light)",
               lineHeight: 1.9,
               overflowWrap: "anywhere",
+              whiteSpace: "pre-wrap",
             }}
           >
             <div
@@ -97,6 +139,19 @@ export default function ChatInterface() {
             {message.content}
           </div>
         ))}
+
+        {loading && (
+          <div
+            role="status"
+            style={{
+              alignSelf: "flex-end",
+              padding: 12,
+              color: "var(--muted)",
+            }}
+          >
+            مسعد AI يكتب الرد...
+          </div>
+        )}
       </div>
 
       <form
@@ -112,6 +167,7 @@ export default function ChatInterface() {
           onChange={(event) => setInput(event.target.value)}
           placeholder="اكتب رسالتك هنا..."
           aria-label="رسالتك"
+          disabled={loading}
           style={{
             minWidth: 0,
             flex: 1,
@@ -125,7 +181,7 @@ export default function ChatInterface() {
 
         <button
           type="submit"
-          disabled={!input.trim()}
+          disabled={!input.trim() || loading}
           style={{
             padding: "12px 18px",
             border: 0,
@@ -133,14 +189,21 @@ export default function ChatInterface() {
             background: "var(--primary)",
             color: "#fff",
             fontWeight: 700,
+            opacity: !input.trim() || loading ? 0.6 : 1,
           }}
         >
-          إرسال
+          {loading ? "انتظر..." : "إرسال"}
         </button>
       </form>
 
-      <p style={{ color: "var(--muted)", fontSize: 12, lineHeight: 1.8 }}>
-        النسخة التجريبية: الردود الحالية ليست مولدة بواسطة نموذج ذكاء اصطناعي.
+      <p
+        style={{
+          color: "var(--muted)",
+          fontSize: 12,
+          lineHeight: 1.8,
+        }}
+      >
+        مسعد AI — مساعدك الذكي باللغة العربية.
       </p>
     </section>
   );
